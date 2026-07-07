@@ -1,12 +1,59 @@
-Tutorial: Training on the DIIR Compute NodeThis tutorial provides a step-by-step workflow for running LLM experiments on the highly secure, offline DIIR compute nodes.The DIIR compute nodes are completely disconnected from the external internet for security reasons. You cannot run pip install, git clone, or download models directly from HF during your job. All environments and dependencies must be packed beforehand.Step 1: The Server ArchitectureThe DIIR infrastructure consists of three main components. Understanding their roles is important for navigating the offline environment. All the 3 servers require CUHK VPN connection.CHPC Server (The Command Center)Purpose: This is our login node (we use aiss compute node on this node). We use this server to submit, manage, and cancel our SLURM jobs (using commands like sbatch and squeue).137.189.4.221 Server (The Transition Station)Purpose: Since the compute nodes lack internet access, this server acts as a secure gateway. You will use it to upload your code, Conda environments, and Docker/Podman containers to the DIIR isolated environment. The to_Secure_Store folder is used to transfer the files from 137.189.4.221 to Diir computation node 137.189.4.220.NoMachine Server - 137.189.4.220 (The Visual GUI)Purpose: Accessible via NoMachine or via a web browser at https://137.189.4.220:4443/. This provides a virtual Linux desktop. You can use it to visually monitor your code's progress, browse generated images/graphs, and check output logs in real-time.Step 2: Packing Your Code and Conda EnvironmentBecause the DIIR node is offline, you must pack your environment and code on an internet-connected machine beforehand.Packing the Conda EnvironmentI recommend using conda-pack to bundle your entire Python environment into a single portable archive.# 1. Install conda-pack in your base environment
+# Tutorial: Training on the DIIR Compute Node
+
+This tutorial provides a step-by-step workflow for running LLM experiments on the highly secure, offline DIIR compute nodes.
+
+The DIIR compute nodes are completely disconnected from the external internet for security reasons. You cannot run `pip install`, `git clone`, or download models directly from HF during your job. All environments and dependencies must be packed beforehand.
+
+## Step 1: The Server Architecture
+
+The DIIR infrastructure consists of three main components. Understanding their roles is important for navigating the offline environment. All the 3 servers require CUHK VPN connection.
+
+1. **CHPC Server (The Command Center)**
+
+   * **Purpose:** This is our login node (we use aiss compute node on this node). We use this server to submit, manage, and cancel our SLURM jobs (using commands like `sbatch` and `squeue`).
+
+2. **137.189.4.221 Server (The Transition Station)**
+
+   * **Purpose:** Since the compute nodes lack internet access, this server acts as a secure gateway. You will use it to upload your code, Conda environments, and Docker/Podman containers to the DIIR isolated environment. The `to_Secure_Store` folder is used to transfer the files from **137.189.4.221 to Diir computation node 137.189.4.220.**
+
+3. **NoMachine Server - 137.189.4.220 (The Visual GUI)**
+
+   * **Purpose:** Accessible via NoMachine or via a web browser at `https://137.189.4.220:4443/`. This provides a virtual Linux desktop. You can use it to visually monitor your code's progress, browse generated images/graphs, and check output logs in real-time.
+
+## Step 2: Packing Your Code and Conda Environment
+
+Because the DIIR node is offline, you must pack your environment and code on the aiss folder in CHPC node or your local pc machine beforehand.
+
+### Packing the Conda Environment
+
+I recommend using `conda-pack` to bundle your entire Python environment into a single portable archive.
+
+```bash
+# 1. Install conda-pack in your base environment
 conda install -c conda-forge conda-pack
 
 # 2. Pack your target environment (e.g., 'segr1_env')
 conda pack -n segr1_env -o segr1_env_packed.tar.gz
+```
 
-Packing Your CodeCompress your working directory containing your training scripts.tar -czvf sam_llm_grpo_code.tar.gz sam_llm_grpo/
+### Packing Your Code
 
-Step 3: Packing the Docker Container LocallyThe computation node runs jobs inside Podman/Docker containers. You must build and export this container on a local pc machine first (we do not have the permission to creating docker container on the CHPC node). Please ensure you have Docker Desktop installed on your local machine before proceeding (https://www.docker.com/products/docker-desktop/). I recommend using the official Hugging Face GPU image as your base (https://hub.docker.com/r/huggingface/transformers-pytorch-gpu).1. Create a DockerfileCreate a file named Dockerfile (with no file extenstion like .txt or .py) on your local pc machine. U can use notepad to create a Dockerfile.txt with the following contents and then delete the file extention .txt:# Use the Hugging Face PyTorch GPU image as the base
+Compress your working directory containing your training scripts.
+
+```bash
+tar -czvf sam_llm_grpo_code.tar.gz sam_llm_grpo/
+```
+
+## Step 3: Packing the Docker Container Locally
+
+The computation node runs jobs inside Podman/Docker containers. You **must** build and export this container on a local pc machine first (we do not have the permission to creating docker container on the CHPC node). **Please ensure you have Docker Desktop installed on your local machine before proceeding (https://www.docker.com/products/docker-desktop/).** I recommend using the official Hugging Face GPU image as your base (**https://hub.docker.com/r/huggingface/transformers-pytorch-gpu**).
+
+### 1. Create a Dockerfile
+
+Create a file named `Dockerfile` (with **no** file extenstion like .txt or .py) on your local pc machine. U can use notepad to create a Dockerfile.txt with the following contents and then delete the file extention .txt:
+
+```dockerfile
+# Use the Hugging Face PyTorch GPU image as the base
 FROM huggingface/transformers-pytorch-gpu:latest
 
 # Install any additional system-level dependencies required by your code
@@ -17,18 +64,48 @@ RUN apt-get update && apt-get install -y \
 
 # Set the working directory
 WORKDIR /working-dir
+```
 
-2. Build and Save the ImageOpen Docker Desktop. cd to the local dictionary where u save the Dockerfile. Run the following commands locally via Powershell or Terminal to build the image and save it as a .tar file:# Build the image
+### 2. Build and Save the Image
+
+Open **Docker Desktop.** cd to the local dictionary where u save the `Dockerfile`. Run the following commands locally via Powershell or Terminal to build the image and save it as a `.tar` file:
+
+```bash
+# Build the image
 docker build -t grpo:v1 .
 
 # Save the image to a tar archive (This file will be large! Around 26 Gb if u use HF GPU Transformer image)
-docker save -o grpo_image.tar grpo:v1
+docker save -o grpo_image.tar grpo:v1 # u need to write down this name and tag (grpo:v1) because this will be used in creating the slurm file.
+```
 
-Step 4: Uploading to the 221 Transition ServerNow, transfer your packed environment, code, and container to the DIIR secure zone.Upload files to the 221 server using scp:scp segr1_env_packed.tar.gz sam_llm_grpo_code.tar.gz grpo_image.tar username@137.189.4.221:~
+## Step 4: Uploading to the 221 Transition Server
 
-Move files to the Secure Store:SSH into the 137.189.4.221 server, locate the to_Secure_Store folder, and move your files into it:mv segr1_env_packed.tar.gz sam_llm_grpo_code.tar.gz grpo_image.tar ~/to_Secure_Store/
+Now, transfer your packed environment, code, and container to the DIIR secure zone.
 
-Wait a few minutes, and the system will automatically transport these files into your private directory (usually /diir/$USER/private/) on the DIIR compute nodes.Step 5: Checking Upload Status on CHPCBefore writing and submitting your SLURM script, you should verify that your files have been successfully synced to the DIIR computation node.Login to the NoMachine Server (137.189.4.220), and use the following commands:# 1. Mount your DIIR network drive
+1. **Upload files to the 221 server** using `scp`:
+
+   ```bash
+   scp segr1_env_packed.tar.gz sam_llm_grpo_code.tar.gz grpo_image.tar username@137.189.4.221:~
+   ```
+
+2. **Move files to the Secure Store:**
+   SSH into the `137.189.4.221` server, locate the `to_Secure_Store` folder, and move your files into it:
+
+   ```bash
+   mv segr1_env_packed.tar.gz sam_llm_grpo_code.tar.gz grpo_image.tar ~/to_Secure_Store/
+   ```
+<img width="2152" height="1336" alt="image" src="https://github.com/user-attachments/assets/39c2b694-c666-4ebe-9491-c3c4cc1be36f" />
+
+Wait a few minutes, and the system will automatically transport these files into your private directory (usually `/diir/$USER/private/`) on the DIIR compute nodes.
+
+## Step 5: Checking Upload Status on CHPC
+
+Before writing and submitting your SLURM script, you should verify that your files have been successfully synced to the DIIR computation node.
+
+Login to the NoMachine **Server (137.189.4.220)**, and use the following commands:
+
+```bash
+# 1. Mount your DIIR network drive
 mountdiir
 
 # 2. Check if your files exist in your private folder or Directly check via NoMachine UI
@@ -36,14 +113,40 @@ ls -lh /diir/$USER/private/
 
 # 3. Unmount the drive (IMPORTANT: Always unmount after checking)
 umountdiir
+```
+<img width="1338" height="896" alt="image" src="https://github.com/user-attachments/assets/51ed5018-d1f2-4e42-ba1d-08cb7bfd8893" />
+<img width="1350" height="892" alt="image" src="https://github.com/user-attachments/assets/1809f8d4-8232-4534-ae42-728bcbbacc4e" />
+<img width="1336" height="892" alt="image" src="https://github.com/user-attachments/assets/a7080636-8722-4c7b-aef2-a0cace35545d" />
+<img width="1336" height="882" alt="image" src="https://github.com/user-attachments/assets/21cbcc98-30ee-4167-ae43-4cd657afd0be" />
 
-(Please insert a screenshot here showing the successful terminal output of the ls -lh command)Step 6: Writing the SLURM ScriptOnce the files are synced, you need a SLURM script to orchestrate the loading of the container, unpacking of the environment, and execution of the training.Create a file named your_exp.slurm on the CHPC Server.Crucial Note on Paths: Pay special attention to the volume mount line in the script: -v /diir/$USER/private/sam_llm_grpo:/working-dir/code. This maps your physical folder on the server to /working-dir/code inside the Podman container. Therefore, you must change all absolute paths in your Python scripts and SLURM arguments to match this internal path.Example: If your dataset is physically located at /diir/s1155191391/private/sam_llm_grpo/datasets/data.jsonl, inside the SLURM script you must pass it as --dataset_jsonl /working-dir/code/datasets/data.jsonl. In the python script, u need to change the absolute path from /diir/s1155191391/private/sam_llm_grpo/datasets/data.jsonl to /working-dir/code/datasets/data.jsonl.This is my SLURM script example to run grpo:#!/bin/bash
+<img width="1348" height="900" alt="image" src="https://github.com/user-attachments/assets/2ea6f263-66c0-4c3b-a232-809627e0e495" />
+u can see your containers, datasets, codes, and conda env here:
+<img width="1326" height="892" alt="image" src="https://github.com/user-attachments/assets/49249814-bc9a-4ebc-ac6f-eada79e6a012" />
+<img width="1333" height="889" alt="image" src="https://github.com/user-attachments/assets/746134bb-3d62-4776-9456-973638f97ede" />
+
+
+
+
+## Step 6: Writing the SLURM Script
+
+Once the files are synced, you need a SLURM script to orchestrate the loading of the container, unpacking of the environment, and execution of the training.
+
+Create a file named `your_exp.slurm` on the **CHPC Server**.
+
+***Crucial Note on Paths:*** Pay special attention to the volume mount line in the script: `-v /diir/$USER/private/sam_llm_grpo:/working-dir/code`. This maps your physical folder on the server to `/working-dir/code` inside the Podman container. Therefore, you **must** change all absolute paths in your Python scripts and SLURM arguments to match this internal path.
+
+* **Example:** If your dataset is physically located at `/diir/s1155191391/private/sam_llm_grpo/datasets/data.jsonl`, inside the SLURM script you must pass it as `--dataset_jsonl /working-dir/code/datasets/data.jsonl`. In the python script, u need to change the absolute path from `/diir/s1155191391/private/sam_llm_grpo/datasets/data.jsonl` to `/working-dir/code/datasets/data.jsonl`.
+
+This is my SLURM script example to run grpo:
+
+```bash
+#!/bin/bash
 #SBATCH --job-name=Regional_GRPO
 #SBATCH --account=diir
 #SBATCH --partition=diir
 #SBATCH --gres=gpu:4
 #SBATCH --cpus-per-task=32
-#SBATCH --mem=600G
+#SBATCH --mem=120G
 #SBATCH --output=/diir/s1155191391/log/%j.out
 #SBATCH --error=/diir/s1155191391/log/%j.err
 
@@ -150,8 +253,12 @@ podman run \
 
 umountdiir
 echo "GRPO Training Job Done!"
+```
 
-U can use this simple structure:#!/bin/bash
+### U can use this simple structure:
+
+```bash
+#!/bin/bash
 #SBATCH --job-name=My_General_Job
 #SBATCH --account=diir
 #SBATCH --partition=diir
@@ -194,9 +301,34 @@ podman run \
 
 umountdiir
 echo "Job Done!"
+```
 
-Step 7: Submitting the Job on the CHPC NodeLogin to the CHPC server and navigate to the directory where you saved your .slurm file.Submit the job using sbatch:sbatch run_regional_grpo.slurm
+## Step 7: Submitting the Job on the CHPC Node
 
-To check the status of your job (whether it is Pending PD or Running R):squeue -u $USER
+Login to the **CHPC server** and navigate to the directory where you saved your `.slurm` file.
 
-Step 8: Monitoring Job ProgressYou can monitor your training progress directly through the NoMachine visual interface:Open NoMachine or Open your web browser and go to https://137.189.4.220:4443/.Log in with DUO and your password.Open the file explorer (folder icon) within the NoMachine Linux desktop.Navigate to your log directory (e.g., /diir/<your_username>/private/log/).Simply double-click to open the generated .err and .out files. You can refresh them to view your code's real-time outputs and debugging information. 
+Submit the job using `sbatch`:
+
+```bash
+sbatch run_regional_grpo.slurm
+```
+
+To check the status of your job (whether it is Pending `PD` or Running `R`):
+
+```bash
+squeue -u $USER
+```
+
+## Step 8: Monitoring Job Progress
+
+You can monitor your training progress directly through the NoMachine visual interface:
+
+1. Open NoMachine or Open your web browser and go to `https://137.189.4.220:4443/`.
+2. Log in with DUO and your password.
+3. Open the file explorer (folder icon) within the NoMachine Linux desktop.
+4. Navigate to your log directory (e.g., `/diir/<your_username>/private/log/`).
+5. Simply double-click to open the generated `.err` and `.out` files. You can refresh them to view your code's real-time outputs and debugging information.
+<img width="1342" height="889" alt="image" src="https://github.com/user-attachments/assets/a9e29edf-1c3a-409e-a0fe-52be49ac0b96" />
+<img width="1344" height="892" alt="image" src="https://github.com/user-attachments/assets/ccd734c6-8bd2-47bc-994d-37962f6e79a9" />
+<img width="1336" height="889" alt="image" src="https://github.com/user-attachments/assets/16d501d4-718c-461d-8af0-4703e771d3f0" />
+

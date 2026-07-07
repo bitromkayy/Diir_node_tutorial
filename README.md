@@ -20,7 +20,7 @@ The DIIR infrastructure consists of three main components. Understanding their r
 
    * **Purpose:** Accessible via NoMachine or via a web browser at `https://137.189.4.220:4443/`. This provides a virtual Linux desktop. You can use it to visually monitor your code's progress, browse generated images/graphs, and check output logs in real-time.
 
-## Step 2: Packing Your Code and Conda Environment
+## Step 2: Packing Your Code and Conda Environment on CHPC node or local pc
 
 Because the DIIR node is offline, you must pack your environment and code on the aiss folder in CHPC node or your local pc machine beforehand.
 
@@ -98,11 +98,11 @@ Now, transfer your packed environment, code, and container to the DIIR secure zo
 
 Wait a few minutes, and the system will automatically transport these files into your private directory (usually `/diir/$USER/private/`) on the DIIR compute nodes.
 
-## Step 5: Checking Upload Status on CHPC
+## Step 5: Checking Upload Status on NoMachine UI
 
 Before writing and submitting your SLURM script, you should verify that your files have been successfully synced to the DIIR computation node.
 
-Login to the NoMachine **Server (137.189.4.220)**, and use the following commands:
+Login to the NoMachine **Server (137.189.4.220)**, and use the following commands (OR DIRECTLY CHECK IN NOMACHINE UI WITH THE FOLLOWING STEPS):
 
 ```bash
 # 1. Mount your DIIR network drive
@@ -127,7 +127,7 @@ u can see your containers, datasets, codes, and conda env here:
 
 
 
-## Step 6: Writing the SLURM Script
+## Step 6: Writing the SLURM Script on CHPC node
 
 Once the files are synced, you need a SLURM script to orchestrate the loading of the container, unpacking of the environment, and execution of the training.
 
@@ -303,14 +303,17 @@ umountdiir
 echo "Job Done!"
 ```
 
-## Step 7: Submitting the Job on the CHPC Node
+## Step 7: Submitting the Job on the CHPC node
 
-Login to the **CHPC server** and navigate to the directory where you saved your `.slurm` file.
+Login to the **CHPC server** and navigate to the directory to your home.
+```bash
+cd ~
+```
 
 Submit the job using `sbatch`:
 
 ```bash
-sbatch run_regional_grpo.slurm
+sbatch absolute_path_to_slurm/run_regional_grpo.slurm
 ```
 
 To check the status of your job (whether it is Pending `PD` or Running `R`):

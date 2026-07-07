@@ -44,6 +44,8 @@ Compress your working directory containing your training scripts.
 tar -czvf sam_llm_grpo_code.tar.gz sam_llm_grpo/
 ```
 
+### Packing Your Cache folder if needed (Optinal, usually necessary for LLM experiments which required weights from HF)
+
 ## Step 3: Packing the Docker Container Locally
 
 The computation node runs jobs inside Podman/Docker containers. You **must** build and export this container on a local pc machine first (we do not have the permission to creating docker container on the CHPC node). **Please ensure you have Docker Desktop installed on your local machine before proceeding (https://www.docker.com/products/docker-desktop/).** I recommend using the official Hugging Face GPU image as your base (**https://hub.docker.com/r/huggingface/transformers-pytorch-gpu**).
